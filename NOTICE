@@ -1,0 +1,18 @@
+SpatialBlend Reconstruction
+Copyright (c) 2026 Seoul National University. Licensed under the MIT License (LICENSE).
+
+The scan server (server/) and the client library (client/) were originally designed and implemented by Dongho Han
+(Seoul National University). Jingyu Lee (Seoul National University) packaged and extended the server (configuration,
+health service, CPU tests, stub, box and negative prompts) and added the client's TLS transport, the scan API names,
+CI and the golden pipeline.
+
+Model weights and model code are NOT part of this repository. At run time the server loads SAM 3
+(https://huggingface.co/facebook/sam3) and SAM 3D Objects (https://github.com/facebookresearch/sam-3d-objects,
+https://huggingface.co/facebook/sam-3d-objects), "SAM Materials" under Meta's SAM License, which users obtain from
+Meta directly; see server/NOTICE and server/THIRD_PARTY.md.
+
+Vendored third-party code: client/third_party/stb (stb_image, stb_image_write by Sean Barrett, MIT or public domain;
+used by a test only)
+and client/third_party/rules_android_ndk/windows_fix.patch (a patch to rules_android_ndk, Apache-2.0). The client's
+prebuilt libraries statically link gRPC, Protocol Buffers, Abseil, BoringSSL and others; their licence texts are in
+client/THIRD_PARTY_NOTICES-native.txt, which ships with every binary release.

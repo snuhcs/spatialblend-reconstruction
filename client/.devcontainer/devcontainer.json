@@ -1,0 +1,45 @@
+// For format details, see https://aka.ms/devcontainer.json
+{
+	"name": "SpatialBlend Session",
+	// Build from local Dockerfile (standalone, ubuntu:22.04 based)
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": ".."
+	},
+	"runArgs": [
+		"--network=host",
+		"--add-host=host.docker.internal:host-gateway",
+		"--cap-add=SYS_PTRACE"
+	],
+	"workspaceFolder": "/workspace/spatialblend-session",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace/spatialblend-session,type=bind,consistency=cached",
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": "mkdir -p ~/.config/fish && cp .devcontainer/config.fish ~/.config/fish/config.fish && chmod 700 ~/.ssh && chmod 600 ~/.ssh/id_* 2>/dev/null || true && eval $(ssh-agent -s) && ssh-add ~/.ssh/id_ed25519 2>/dev/null || true",
+	// Configure tool-specific properties.
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode-remote.remote-containers",
+				"bazelbuild.vscode-bazel",
+				"ms-vscode.cpptools-extension-pack",
+				"xaver.clang-format",
+				"ms-azuretools.vscode-docker",
+				"StackBuild.bazel-stack-vscode",
+				"StackBuild.bazel-stack-vscode-cc",
+				"ms-vscode.cpptools",
+				"akiramiyakoda.cppincludeguard"
+			],
+			"settings": {
+				"terminal.integrated.shell.linux": "/usr/bin/fish"
+			}
+		}
+	},
+	"mounts": [
+		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/root/.ssh,type=bind,consistency=cached",
+		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
+	],
+	"remoteEnv": {
+		"SSH_AUTH_SOCK": "${localEnv:SSH_AUTH_SOCK}"
+	},
+	"remoteUser": "root"
+}

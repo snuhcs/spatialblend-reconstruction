@@ -1,0 +1,15 @@
+/bazel-*
+*.o
+*.so
+*.dylib
+*.dll
+*.a
+__pycache__/
+*.py[cod]
+.cache
+*.log
+.DS_Store
+.vscode/
+compile_commands.json
+/output/
+test_output

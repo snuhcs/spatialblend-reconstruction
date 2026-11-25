@@ -1,0 +1,22 @@
+# GPU environment for the scan server: Linux x86-64, an NVIDIA GPU with at least 32 GB of memory, CUDA 12.1 wheels.
+#
+#   conda env create -f environment.yml
+#   conda activate sam3d-scan
+#   ./scripts/install_sam3d_objects.sh ~/sam-3d-objects     # clones the pinned commit and installs it
+#   sam3d-scan-models --sam3d-root ~/sam-3d-objects          # gated weights, see README.md
+#
+# Tested combination (RTX A6000, compute capability 8.6): Python 3.11, torch 2.5.1+cu121, transformers 5.3.0,
+# pytorch3d 0.7.8, kaolin 0.17.0, gsplat 1.5.3, flash-attn 2.8.3, grpcio 1.71.2, protobuf 5.29.
+name: sam3d-scan
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - cmake
+  - ninja
+  - pip:
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+      - torch==2.5.1
+      - torchvision==0.20.1
+      - -e .[gpu]

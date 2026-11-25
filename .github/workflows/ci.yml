@@ -1,0 +1,87 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server-tests:
+    name: server CPU tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04   # pinned like the client build jobs (no BoringSSL build here; one image for the whole workflow)
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e '.[test]'
+      - run: python -m pytest -q
+
+  server-stub-image:
+    name: server stub container (build, health, Segment + Reconstruct)
+    runs-on: ubuntu-24.04   # pinned like the client build jobs (no BoringSSL build here; one image for the whole workflow)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: docker build --check -f server/Dockerfile .
+      - run: docker build -f server/Dockerfile --target stub -t sam3d-scan-server:stub .
+      - run: docker run -d --name stub -p 127.0.0.1:9800:9800 sam3d-scan-server:stub
+      - run: python -m pip install -e server
+      - run: sam3d-scan-server health --server 127.0.0.1:9800 --wait 60
+      - run: python server/tools/probe_stub.py 127.0.0.1:9800
+      - if: always()
+        run: docker logs stub; docker rm -f stub
+
+  client:
+    name: client (Bazel tests, Linux x64 build, export audit, golden self-test)
+    runs-on: ubuntu-24.04   # pinned: on ubuntu-26.04 BoringSSL fails with -Werror=discarded-qualifiers
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Mount bazel cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel-disk
+          key: bazel-client-linux-${{ hashFiles('client/MODULE.bazel', 'client/MODULE.bazel.lock', 'client/.bazelrc', 'client/.bazelversion') }}
+          restore-keys: bazel-client-linux-
+      - name: Test the export audit
+        run: python script/test_audit_session_plugin_exports.py
+      - name: Test
+        run: bazel test --disk_cache=$HOME/.cache/bazel-disk --test_output=errors //session/...
+      - name: Build
+        run: bazel build --disk_cache=$HOME/.cache/bazel-disk //session/c:libspatialblend_session_c
+      - name: Audit exports
+        run: |
+          set -euo pipefail
+          mkdir -p out stage
+          tar -xf bazel-bin/session/c/libspatialblend_session_c.tar -C stage
+          cp stage/lib/libspatialblend_session.so out/libspatialblend_session.so
+          python script/audit_session_plugin_exports.py \
+            --library out/libspatialblend_session.so \
+            --headers session/c \
+            --summary out/summary.txt \
+            --checksum out/SHA256SUMS
+      - name: Golden pipeline self-test (the built library against the bundled stub server)
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet numpy pillow "grpcio>=1.62,<1.72" "grpcio-tools>=1.62,<1.72"
+          python script/golden_pipeline/golden_pipeline.py selftest --lib out/libspatialblend_session.so

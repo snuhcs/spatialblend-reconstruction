@@ -1,0 +1,201 @@
+name: client release
+
+# Builds libspatialblend_session (client/, //session/c) for Android arm64, macOS arm64, Windows x64 and Linux x64 on
+# GitHub-hosted runners and audits that each exports only spatialblend_* symbols (the audit writes SHA256SUMS only when it
+# passes). On a v* tag, or a manual run with a tag name, it creates a DRAFT GitHub Release with the file names the
+# SpatialBlend app's tools/fetch_plugins.py downloads:
+#   libspatialblend_session.so (Android arm64), libspatialblend_session.dylib (macOS arm64), libspatialblend_session.dll
+#   (Windows x64), libspatialblend_session-linux-x64.so, libspatialblend_session-headers.tar.gz, SHA256SUMS,
+#   THIRD_PARTY_NOTICES-native.txt, LICENSE.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create as a draft (for example v1.0.0); empty: build and upload artifacts only"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-24.04   # pinned: on ubuntu-26.04 BoringSSL fails with -Werror=discarded-qualifiers
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel-disk
+          key: bazel-client-linux-${{ hashFiles('client/MODULE.bazel', 'client/MODULE.bazel.lock', 'client/.bazelrc', 'client/.bazelversion') }}
+          restore-keys: bazel-client-linux-
+      - run: bazel build --disk_cache=$HOME/.cache/bazel-disk //session/c:libspatialblend_session_c
+      - name: Audit exports
+        run: |
+          set -euo pipefail
+          mkdir -p out stage headers
+          tar -xf bazel-bin/session/c/libspatialblend_session_c.tar -C stage
+          cp stage/lib/libspatialblend_session.so out/libspatialblend_session.so
+          python3 script/audit_session_plugin_exports.py --library out/libspatialblend_session.so --headers session/c \
+            --summary out/summary.txt --checksum out/SHA256SUMS
+          tar -xf bazel-bin/session/c/libspatialblend_session_c.tar -C headers include
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libspatialblend_session-linux-x64
+          path: client/out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libspatialblend_session-headers
+          path: client/headers/
+
+  android:
+    name: Android arm64
+    runs-on: ubuntu-24.04   # pinned like the Linux job: the host (exec) tools are compiled with the runner's gcc
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up NDK r27d
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27d
+          add-to-path: false
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel-disk
+          key: bazel-client-android-${{ hashFiles('client/MODULE.bazel', 'client/MODULE.bazel.lock', 'client/.bazelrc', 'client/.bazelversion') }}
+          restore-keys: bazel-client-android-
+      - name: Build
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: bazel build --disk_cache=$HOME/.cache/bazel-disk --config=android //session/c:libspatialblend_session_c
+      - name: Audit exports
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          mkdir -p out stage
+          tar -xf bazel-bin/session/c/libspatialblend_session_c.tar -C stage
+          cp stage/lib/libspatialblend_session.so out/libspatialblend_session.so
+          NM="$(find "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt" -type f -path '*/bin/llvm-nm' | head -n 1)"
+          test -x "$NM"
+          python3 script/audit_session_plugin_exports.py --library out/libspatialblend_session.so --nm "$NM" \
+            --headers session/c --summary out/summary.txt --checksum out/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libspatialblend_session-android-arm64
+          path: client/out/
+
+  macos:
+    name: macOS arm64
+    runs-on: macos-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel-disk
+          key: bazel-client-macos-${{ hashFiles('client/MODULE.bazel', 'client/MODULE.bazel.lock', 'client/.bazelrc', 'client/.bazelversion') }}
+          restore-keys: bazel-client-macos-
+      - run: bazel test --disk_cache=$HOME/.cache/bazel-disk --test_output=errors //session/...
+      - run: bazel build --disk_cache=$HOME/.cache/bazel-disk //session/c:libspatialblend_session_c
+      - name: Audit exports
+        run: |
+          set -euo pipefail
+          mkdir -p out stage
+          tar -xf bazel-bin/session/c/libspatialblend_session_c.tar -C stage
+          cp stage/lib/libspatialblend_session.dylib out/libspatialblend_session.dylib
+          python3 script/audit_session_plugin_exports.py --library out/libspatialblend_session.dylib --headers session/c \
+            --summary out/summary.txt --checksum out/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libspatialblend_session-macos
+          path: client/out/
+
+  windows:
+    name: Windows x64
+    runs-on: windows-2022   # pinned: VS 2026 (MSVC 14.52) fails on third-party headers; VS 2022 has MSVC 14.44
+    timeout-minutes: 150
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: "C:/bazel-disk"
+          key: bazel-client-windows-${{ hashFiles('client/MODULE.bazel', 'client/MODULE.bazel.lock', 'client/.bazelrc', 'client/.bazelversion') }}
+          restore-keys: bazel-client-windows-
+      - name: Build
+        shell: cmd
+        # A short output root keeps protobuf/gRPC include paths under MSVC's MAX_PATH. SPATIALBLEND_BUILD_DLL turns
+        # SPATIALBLEND_EXPORT into dllexport.
+        run: bazel --output_user_root=C:/b build --disk_cache=C:/bazel-disk --copt=-DSPATIALBLEND_BUILD_DLL --strip=always //session/c:c_shared
+      - name: Audit exports
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem bazel-bin/session/c -Filter 'libspatialblend_session.dll' | Select-Object -First 1
+          if (-not $dll) { throw 'libspatialblend_session.dll not produced' }
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Where-Object FullName -match 'Hostx64\\x64' | Select-Object -First 1
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item $dll.FullName out/libspatialblend_session.dll
+          python script/audit_session_plugin_exports.py `
+            --library out/libspatialblend_session.dll `
+            --dumpbin $dumpbin.FullName `
+            --headers session/c `
+            --summary out/summary.txt `
+            --checksum out/SHA256SUMS
+          if ($LASTEXITCODE -ne 0) { throw "export audit failed ($LASTEXITCODE)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libspatialblend_session-windows-x64
+          path: client/out/
+
+  release:
+    name: Draft GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+    needs: [linux, android, macos, windows]
+    runs-on: ubuntu-24.04   # pinned like the build jobs (no BoringSSL build here; one image for the whole workflow)
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Assemble
+        run: |
+          set -euo pipefail
+          a=artifacts
+          # Each platform's audited checksum, verified against the file that is published.
+          for p in android-arm64 macos windows-x64 linux-x64; do (cd $a/libspatialblend_session-$p && sha256sum -c SHA256SUMS); done
+          mkdir -p dist
+          cp $a/libspatialblend_session-android-arm64/libspatialblend_session.so dist/
+          cp $a/libspatialblend_session-macos/libspatialblend_session.dylib dist/
+          cp $a/libspatialblend_session-windows-x64/libspatialblend_session.dll dist/
+          cp $a/libspatialblend_session-linux-x64/libspatialblend_session.so dist/libspatialblend_session-linux-x64.so
+          tar -czf dist/libspatialblend_session-headers.tar.gz -C $a/libspatialblend_session-headers include
+          cp client/THIRD_PARTY_NOTICES-native.txt LICENSE dist/
+          (cd dist && sha256sum libspatialblend_session.so libspatialblend_session.dylib libspatialblend_session.dll \
+             libspatialblend_session-linux-x64.so libspatialblend_session-headers.tar.gz THIRD_PARTY_NOTICES-native.txt \
+             LICENSE > SHA256SUMS && cat SHA256SUMS)
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* --draft --target "$GITHUB_SHA" --title "libspatialblend_session $TAG" \
+            --notes "Prebuilt libspatialblend_session (the scan client C API, client/) for Android arm64, macOS arm64, Windows x64 and Linux x64, built and export-audited by client-release.yml at $GITHUB_SHA. Verify with SHA256SUMS. Third-party licences: THIRD_PARTY_NOTICES-native.txt."

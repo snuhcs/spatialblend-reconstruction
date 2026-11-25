@@ -1,0 +1,29 @@
+// Copyright (c) 2026 Seoul National University
+// SPDX-License-Identifier: MIT
+
+syntax = "proto3";
+
+package spatialblend.scan.v1;
+
+service OneShotReconstructionService {
+  rpc ProcessImage (InferenceRequest) returns (InferenceResponse) {}
+}
+
+message Point {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message InferenceRequest {
+  string client_id = 1;
+  bytes image_data = 2;
+  repeated Point points = 3;
+}
+
+message InferenceResponse {
+  bool success = 1;
+  string message = 2;
+  bytes glb_file = 3;
+  bytes json_file = 4;
+}

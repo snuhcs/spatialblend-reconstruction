@@ -1,0 +1,11 @@
+.git
+.github
+client
+**/__pycache__
+**/.pytest_cache
+**/*.egg-info
+**/.venv
+**/checkpoints
+**/models
+**/distributed_output
+**/.env

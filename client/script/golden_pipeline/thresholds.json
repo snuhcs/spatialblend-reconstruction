@@ -1,0 +1,12 @@
+{
+  "status": "PROPOSED - derive from 3 repeated real-server runs (golden_pipeline.py record --runs 3, see calibration.json) and review them before relying on them",
+  "mask_iou_min": 0.90,
+  "vertex_count_rel": 0.25,
+  "mesh_scale_rel": 0.10,
+  "aspect_abs": 0.10,
+  "chamfer_max": 0.03,
+  "objinfo_scale_rel": 0.10,
+  "objinfo_translation_abs": 0.10,
+  "objinfo_rotation_deg": 10.0,
+  "latency_p95_s": {"segment": 30.0, "reconstruct": 300.0}
+}

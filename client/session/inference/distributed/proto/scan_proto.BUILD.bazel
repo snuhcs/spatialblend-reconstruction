@@ -1,0 +1,5 @@
+# BUILD file for @scan_proto, the repository's top-level proto/ directory (see MODULE.bazel). The scan server
+# (server/, Python) reads the same file, so client and server cannot drift.
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["distributed.proto"])

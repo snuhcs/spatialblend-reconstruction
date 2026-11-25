@@ -1,0 +1,19 @@
+sam3d-scan-server
+Copyright (c) 2026 Seoul National University. Licensed under the MIT License (LICENSE).
+
+The server was originally designed and implemented by Dongho Han (Seoul National University) as
+server_distributed.py; it was packaged, hardened and extended by Jingyu Lee (Seoul National University).
+
+This repository contains no model weights and no code from Meta's SAM 3 or SAM 3D Objects releases. At run time the
+server loads, from locations the user installs them to:
+
+  * SAM 3 (https://huggingface.co/facebook/sam3) through Hugging Face Transformers, and
+  * SAM 3D Objects (https://github.com/facebookresearch/sam-3d-objects and
+    https://huggingface.co/facebook/sam-3d-objects),
+
+both "SAM Materials" under Meta's SAM License (Last Updated: November 19, 2025). Users obtain them directly from
+Meta's gated repositories and are bound by that licence, including its acknowledgement requirement for publications
+and its Trade Control restrictions. SAM 3D Objects in turn downloads MoGe (https://huggingface.co/Ruicheng/moge-vitl,
+MIT).
+
+Third-party Python packages used at run time are listed in THIRD_PARTY.md. None are vendored here.

@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+build/
+dist/
+# local model files and outputs: never commit weights or scan data
+checkpoints/
+models/
+distributed_output/
+*.ckpt
+*.safetensors
+*.glb
+# your own values (scripts/configure_secrets.py, mode 600): never commit
+.env
+.env.tmp

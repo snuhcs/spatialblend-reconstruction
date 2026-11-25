@@ -1,0 +1,76 @@
+// Copyright (c) 2026 Seoul National University
+// SPDX-License-Identifier: MIT
+
+// Scan API between the SpatialBlend object-scan client (client/, libspatialblend_session) and the server (server/).
+// Both compile this file; it is the only copy in the repository.
+//
+// Wire contract: the method paths are /spatialblend.scan.v1.ReconstructionService/Segment and .../Reconstruct.
+// Field numbers and types must not change; comments may. server/tests/test_wire_contract.py pins the contract; an
+// outside client with its own copy checks it with `python -m sam3d_scan_server.contract <copy>`.
+syntax = "proto3";
+
+package spatialblend.scan.v1;
+
+service ReconstructionService {
+  // Phase 1: SAM 3 segmentation only (image + prompt -> mask).
+  rpc Segment(SegmentRequest) returns (SegmentResponse) {}
+
+  // Phase 2: SAM 3D Objects reconstruction only (image + mask -> 3D mesh).
+  rpc Reconstruct(ReconstructRequest) returns (ReconstructResponse) {}
+}
+
+// One prompt point in image pixels (x right, y down). z is the prompt label:
+//   0 or 1  positive click (older clients send 0 for every click)
+//   -1      negative click (exclude this region)
+//   2, 3    top-left / bottom-right corner of one box prompt (both or neither)
+// Named SegPoint (not Point) so the C++ client can include it next to another proto that declares Point.
+message SegPoint {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+// ---- Segment ----
+
+message SegmentRequest {
+  string client_id = 1;
+  // An encoded image (PNG or JPEG).
+  bytes image_data = 2;
+  // At least one positive click or one box. Clicks outside the image are dropped; the box is clamped to it.
+  repeated SegPoint points = 3;
+}
+
+message SegmentResponse {
+  bool success = 1;
+  // On success: "Segment OK | ... | points:N | pos:P | neg:Q | box:0/1 | time:...". box:1 tells the client that the
+  // server used its box (an older server takes the corners as clicks). On failure: the reason.
+  string message = 2;
+  // Raw binary mask: mask_height * mask_width bytes, uint8, 0 = background, 1 = object, row-major:
+  // mask[row][col] = mask_data[row * mask_width + col].
+  bytes mask_data = 3;
+  int32 mask_width = 4;
+  int32 mask_height = 5;
+}
+
+// ---- Reconstruct ----
+
+message ReconstructRequest {
+  string client_id = 1;
+  // The same encoded image that was segmented.
+  bytes image_data = 2;
+  // A mask in the SegmentResponse format.
+  bytes mask_data = 3;
+  int32 mask_width = 4;
+  int32 mask_height = 5;
+}
+
+message ReconstructResponse {
+  bool success = 1;
+  string message = 2;
+  // Binary glTF 2.0 (.glb) of the object.
+  bytes glb_file = 3;
+  // UTF-8 JSON: {"filename", "timestamp", "obj_2_pt3d_transform": {"scale", "rotationQuaternion", "translation",
+  // "matrix"}}: the object's pose in the PyTorch3D camera frame of the input image; matrix is the same transform as a
+  // flattened 4x4 (server.py, format_transform_to_json).
+  bytes json_file = 4;
+}

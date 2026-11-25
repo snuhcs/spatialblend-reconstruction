@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sam3d-scan-server"
+version = "0.1.0"
+description = "gRPC scan server: SAM 3 segmentation and SAM 3D Objects reconstruction for the SpatialBlend object-scan client"
+requires-python = ">=3.10"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Seoul National University" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+  # sam3d_objects pins protobuf 5.29, and generated gRPC code must not be newer than the runtime, so the gRPC
+  # family stays at 1.71 (generated for protobuf 5.29). Newer releases need protobuf 6 or 7.
+  "grpcio>=1.62,<1.72",
+  "grpcio-tools>=1.62,<1.72",
+  "grpcio-health-checking>=1.62,<1.72",
+  "protobuf>=4.25,<6",
+  "numpy>=1.26",
+  "pillow>=10",
+]
+
+[project.optional-dependencies]
+# The GPU stack. sam3d_objects and pytorch3d are not on PyPI in a usable form: see environment.yml and README.md.
+gpu = [
+  "torch==2.5.1",            # pinned by sam3d_objects
+  # Sam3TrackerModel / Sam3TrackerProcessor first ship in 5.0.0; later 5.x need torch.accelerator (torch >= 2.6).
+  "transformers==5.3.0",
+  "huggingface_hub>=0.26",
+  "setuptools<81",           # lightning (via sam3d_objects) still imports pkg_resources
+]
+models = ["huggingface_hub>=0.26"]
+test = ["pytest>=8"]
+
+[project.urls]
+Repository = "https://github.com/snuhcs/spatialblend-reconstruction"
+
+[project.scripts]
+sam3d-scan-server = "sam3d_scan_server.cli:main"
+sam3d-scan-models = "sam3d_scan_server.models:main"
+sam3d-scan-stub = "sam3d_scan_server.stub:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sam3d_scan_server"]
+
+# The proto lives at the repository root (shared with client/). Build wheels from a checkout (pip install ./server,
+# pip install "git+...#subdirectory=server", uv build --wheel): a wheel built from an sdist cannot reach ../proto.
+[tool.hatch.build.targets.wheel.force-include]
+"../proto/distributed.proto" = "sam3d_scan_server/proto/distributed.proto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

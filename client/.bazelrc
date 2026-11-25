@@ -1,0 +1,40 @@
+common --enable_platform_specific_config
+common --per_file_copt=-third_party/.*,-external/.*
+
+# Suppress warnings from external repositories
+common --ui_event_filters=-warning
+common --output_filter='^//'
+
+common:macos --cxxopt=-std=c++17
+common:macos --host_cxxopt=-std=c++17
+common:macos --macos_minimum_os=12.0
+common:macos --host_macos_minimum_os=12.0
+
+common:linux --cxxopt=-std=c++17
+common:linux --host_cxxopt=-std=c++17
+
+common:windows --cxxopt=/std:c++17
+common:windows --host_cxxopt=/std:c++17
+common:windows --cxxopt=/utf-8
+common:windows --host_cxxopt=/utf-8
+common:windows --define=protobuf_allow_msvc=true
+common:windows --action_env=BAZEL_SH="C:/Program Files/Git/bin/bash.exe"
+common:windows --enable_runfiles
+
+# Windows debug configuration to generate PDB files
+common:windows:debug --cxxopt=/Zi
+common:windows:debug --cxxopt=/FS
+common:windows:debug --linkopt=/DEBUG
+common:windows:debug --linkopt=/INCREMENTAL:NO
+
+common -c opt
+common --platform_suffix=opt
+common --strip=always
+
+common:debug -c dbg
+common:debug --platform_suffix=debug
+common:debug --strip=never
+
+common:android --platforms=//session:android_arm64
+common:android --extra_toolchains=@androidndk//:all
+common:android --features=-proto_one_output_per_message
